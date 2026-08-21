@@ -81,9 +81,9 @@ Read the leaf skill in full for any principle you apply. Each entry names when i
 
 ## Subagents
 
-**Use Pi's `subagent` tool with `agent: "poteto-agent"` for implementation delegates and ad-hoc helpers.** The bundled agent reads this skill in full before it works. Routed workflow skills (`how`, `why`, `interrogate`, `reflect`, `swarm`) may use other agents to preserve independent review.
+**Use Pi's `pstack_subagent` tool with `agent: "poteto-agent"` for implementation delegates and ad-hoc helpers.** The bundled agent reads this skill in full before it works. Routed workflow skills (`how`, `why`, `interrogate`, `reflect`, `swarm`) may use other agents to preserve independent review.
 
-**Defaults for each `subagent` call.** Keep the task self-contained, point at files instead of inlining large payloads, and use `role` for model selection. Configure roles through `/setup-pstack` or `pstack_config`. Unconfigured roles inherit the parent Pi model. The tool supports single, `tasks` parallel, and `chain` sequential modes. It limits parallel work to eight tasks and four running child processes. Pi child processes run locally in isolated contexts; do not assume cloud execution, background resume, or a read-only sandbox.
+**Defaults for each `pstack_subagent` call.** Keep the task self-contained, point at files instead of inlining large payloads, and use `role` for model selection. Configure roles through `/setup-pstack` or `pstack_config`. Unconfigured roles inherit the parent Pi model. The tool supports single, `tasks` parallel, and `chain` sequential modes. It limits parallel work to eight tasks and four running child processes. Pi child processes run locally in isolated contexts; do not assume cloud execution, background resume, or a read-only sandbox.
 
 You own every subagent's work. Review the diff and write your own summary, don't pass through what it said. Interrupt-chained resumes silently drop directives, so fire a fresh subagent with consolidated scope rather than trusting a "done" summary. A second opinion is the same prompt against a different model. Agreement is high-signal.
 
