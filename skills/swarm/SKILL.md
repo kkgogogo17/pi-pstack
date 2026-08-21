@@ -27,7 +27,7 @@ Open a todolist with one entry per phase before launching anything.
 
 ## Phase B: Fan out
 
-Spawn all N workers in one parallel `subagent` call using its `tasks` array. Use `agent: "poteto-agent"` unless a workflow names another agent, and set `role: "swarm workers"`. Pi child processes run locally with isolated context, so give each task explicit file pointers and prevent concurrent writes to shared paths.
+Spawn all N workers in one parallel `pstack_subagent` call using its `tasks` array. Use `agent: "poteto-agent"` unless a workflow names another agent, and set `role: "swarm workers"`. Pi child processes run locally with isolated context, so give each task explicit file pointers and prevent concurrent writes to shared paths.
 
 When a worker must start from a non-default pushed branch, pass `cloud_base_branch`.
 

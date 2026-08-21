@@ -26,7 +26,7 @@ Then restart Pi. Use `pi config` to enable or disable package resources.
 
 ## Pi subagents
 
-The extension registers a `subagent` tool using Pi's official isolated-process pattern. A child runs as a separate `pi --mode json --print --no-session` process and returns only its final result to the parent context.
+The extension registers a `pstack_subagent` tool using Pi's official isolated-process pattern. A child runs as a separate `pi --mode json --print --no-session` process and returns only its final result to the parent context.
 
 Bundled agents:
 
@@ -48,7 +48,7 @@ This port deliberately removes Cursor-only setup and behavior:
 
 | Cursor pstack behavior | Pi equivalent |
 |---|---|
-| `Task` and `subagent_type` | `subagent` tool and Markdown agent definitions |
+| `Task` and `subagent_type` | `pstack_subagent` tool and Markdown agent definitions |
 | Cursor model slugs and rules | `/setup-pstack`, `pstack_config`, and Pi `provider/model` selectors |
 | sticky `mode: true` | session-persisted `/poteto-mode` extension command |
 | Cursor todo list | `pstack_todo` tool |

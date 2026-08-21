@@ -26,7 +26,7 @@ The active transcript is `$PI_SESSION_FILE`. Use it directly when present. To ch
 
 ### 2. Spawn three reviewers in parallel
 
-One parallel `subagent` call with three tasks, each using `agent: "poteto-agent"`, `role: "reflect judgment, divergent, synthesizer"`, and a prompt that forbids file writes. Reviewers may use MCPs available to their Pi child process for cited context lookups. The parent applies edits.
+One parallel `pstack_subagent` call with three tasks, each using `agent: "poteto-agent"`, `role: "reflect judgment, divergent, synthesizer"`, and a prompt that forbids file writes. Reviewers may use MCPs available to their Pi child process for cited context lookups. The parent applies edits.
 
 | Lens | `model` | Prompt template |
 |---|---|---|
@@ -34,11 +34,11 @@ One parallel `subagent` call with three tasks, each using `agent: "poteto-agent"
 | Tooling | your configured reflect-tooling model (default `inherit-parent`) | `references/tooling-reviewer.md` |
 | Divergent | your configured reflect-judgment model (default `inherit-parent`) | `references/divergent-reviewer.md` |
 
-Pass each template verbatim, substituting the transcript path or digest where marked. Reviewers return findings in the `subagent` result.
+Pass each template verbatim, substituting the transcript path or digest where marked. Reviewers return findings in the `pstack_subagent` result.
 
 ### 3. Synthesize
 
-One `subagent` call using `agent: "poteto-agent"` and `role: "reflect judgment, divergent, synthesizer"`. The synthesizer may use MCPs available to its Pi child process to spot-check citations. Use `references/synthesizer.md` verbatim, with each reviewer's full output inlined where marked. The synthesizer returns a structured Accepted / Rejected / Backlog list.
+One `pstack_subagent` call using `agent: "poteto-agent"` and `role: "reflect judgment, divergent, synthesizer"`. The synthesizer may use MCPs available to its Pi child process to spot-check citations. Use `references/synthesizer.md` verbatim, with each reviewer's full output inlined where marked. The synthesizer returns a structured Accepted / Rejected / Backlog list.
 
 ### 4. Structural enforcement check
 
