@@ -272,7 +272,7 @@ export default function (pi: ExtensionAPI) {
   pi.on("before_agent_start", (event) => {
     if (!potetoMode) return;
     return {
-      systemPrompt: `${event.systemPrompt}\n\nPstack Poteto Mode is enabled for this session. Follow its persisted workflow: use pstack_todo for non-trivial work, select and read the matching playbook, delegate through the subagent tool when delegation helps, verify real behavior, and name only principles that changed a decision. The full skill is at ${path.join(packageRoot(), "skills/poteto-mode/SKILL.md")}.`,
+      systemPrompt: `${event.systemPrompt}\n\nPstack Poteto Mode is enabled for this session. Follow its persisted workflow: use pstack_todo for non-trivial work, select and read the matching playbook, delegate through the pstack_subagent tool when delegation helps, verify real behavior, and name only principles that changed a decision. The full skill is at ${path.join(packageRoot(), "skills/poteto-mode/SKILL.md")}.`,
     };
   });
 
@@ -382,7 +382,7 @@ export default function (pi: ExtensionAPI) {
   });
 
   pi.registerTool({
-    name: "subagent",
+    name: "pstack_subagent",
     label: "Subagent",
     description: `Delegate isolated work to Pi subagents. Supports exactly one of single agent/task, parallel tasks (maximum ${MAX_PARALLEL_TASKS}), or sequential chain. Bundled pstack agents live in ${bundledAgentsDirectory()}.`,
     parameters: SubagentParams,
