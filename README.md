@@ -42,6 +42,14 @@ It also honors Pi's subagent definition locations:
 
 Bundled agents are the default. Project agents require interactive approval unless `confirmProjectAgents: false` is explicit.
 
+## Using pi-subagents alongside pstack
+
+`pi-pstack` and `pi-subagents` can be enabled together. Pstack uses the namespaced `pstack_subagent` tool, while `pi-subagents` keeps ownership of its `subagent` tool. The two extensions can therefore load in either order without a tool-name collision.
+
+The bundled `poteto-agent` and `comment-sicko` definitions are exported through both Pi's package metadata and `pi-subagents`' package metadata. When `pi-subagents` is installed, those agents are available to its workflows as well as to `pstack_subagent`.
+
+Use `pstack_subagent` when following pstack skills that depend on pstack role-to-model mappings, `tasks`, or `chain`. Use `subagent` when you need `pi-subagents` features such as background runs, worktrees, missions, resumable children, or FleetView. Pstack's model-role settings do not configure `pi-subagents` agents.
+
 ## Safety and compatibility
 
 This port deliberately removes Cursor-only setup and behavior:
