@@ -24,3 +24,9 @@ test("uses a namespaced native delegation tool", () => {
   assert.match(source, /name: "pstack_subagent"/);
   assert.doesNotMatch(source, /name: "subagent"/);
 });
+
+test("sends poteto-mode command messages through the extension API", () => {
+  const source = fs.readFileSync(path.join(root, "extensions/pstack/index.ts"), "utf8");
+  assert.match(source, /pi\.sendUserMessage\(`/);
+  assert.doesNotMatch(source, /ctx\.sendUserMessage\(`/);
+});
