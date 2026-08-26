@@ -10,17 +10,21 @@ import { getAgentDir, SessionManager, type ExtensionAPI } from "@earendil-works/
 import { Type } from "typebox";
 import { bundledAgentsDirectory, discoverAgents, projectAgentsDirectory, type AgentConfig, type AgentScope } from "./agents.ts";
 import { ROLE_NAMES, configPath, defaultConfig, modelsForRole, readConfig, writeConfig } from "./config.ts";
+import { formatSubagentProgress, type SubagentStatus } from "./progress.ts";
 
 const MAX_PARALLEL_TASKS = 8;
 const MAX_CONCURRENCY = 4;
 const MAX_MODEL_OUTPUT_BYTES = 50 * 1024;
 const MODE_ENTRY = "pstack-mode";
+const THINKING_LEVELS = ["off", "minimal", "low", "medium", "high", "xhigh", "max"] as const;
+type ThinkingLevel = typeof THINKING_LEVELS[number];
 
 const Task = Type.Object({
   agent: Type.String({ description: "Agent name. Use poteto-agent for pstack implementation delegates." }),
   task: Type.String({ description: "Self-contained delegated task. Point to files instead of inlining large payloads." }),
   model: Type.Optional(Type.String({ description: "Pi model selector (provider/model). Overrides the role configuration." })),
   role: Type.Optional(Type.String({ description: "pstack model role configured by /setup-pstack." })),
+  thinking: Type.Optional(StringEnum(THINKING_LEVELS, { description: "Thinking level for this child." })),
   cwd: Type.Optional(Type.String({ description: "Working directory for this child Pi process." })),
 });
 
@@ -29,6 +33,7 @@ const SubagentParams = Type.Object({
   task: Type.Optional(Type.String()),
   model: Type.Optional(Type.String()),
   role: Type.Optional(Type.String()),
+  thinking: Type.Optional(StringEnum(THINKING_LEVELS)),
   cwd: Type.Optional(Type.String()),
   tasks: Type.Optional(Type.Array(Task)),
   chain: Type.Optional(Type.Array(Task)),
@@ -46,15 +51,19 @@ type TaskInput = {
   task: string;
   model?: string;
   role?: string;
+  thinking?: ThinkingLevel;
   cwd?: string;
 };
 
-type Usage = { input: number; output: number; cacheRead: number; cacheWrite: number; cost: number; turns: number };
+type Usage = { input: number; output: number; cacheRead: number; cacheWrite: number; peakContext: number; cost: number; turns: number };
 type ChildResult = {
   agent: string;
   source: string;
   task: string;
   model?: string;
+  thinkingLevel?: ThinkingLevel;
+  contextWindow?: number;
+  status: SubagentStatus;
   exitCode: number;
   messages: Message[];
   stderr: string;
@@ -77,7 +86,7 @@ function resultText(result: ChildResult): string {
 }
 
 function failure(result: ChildResult): boolean {
-  return result.exitCode !== 0 || result.stopReason === "error" || result.stopReason === "aborted";
+  return result.status === "failed" || result.exitCode !== 0 || result.stopReason === "error" || result.stopReason === "aborted";
 }
 
 function truncate(text: string): string {
@@ -114,6 +123,8 @@ async function runChild(
   task: TaskInput,
   agents: AgentConfig[],
   model: string | undefined,
+  thinkingLevel: ThinkingLevel | undefined,
+  contextWindow: number | undefined,
   signal: AbortSignal | undefined,
   onUpdate: ((result: ChildResult) => void) | undefined,
 ): Promise<ChildResult> {
@@ -123,10 +134,14 @@ async function runChild(
       agent: task.agent,
       source: "unknown",
       task: task.task,
+      model,
+      thinkingLevel,
+      contextWindow,
+      status: "failed",
       exitCode: 1,
       messages: [],
       stderr: `Unknown agent ${JSON.stringify(task.agent)}. Available agents: ${agents.map((item) => item.name).join(", ") || "none"}.`,
-      usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, cost: 0, turns: 0 },
+      usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, peakContext: 0, cost: 0, turns: 0 },
     };
   }
 
@@ -135,15 +150,21 @@ async function runChild(
     source: agent.source,
     task: task.task,
     model,
+    thinkingLevel,
+    contextWindow,
+    status: "running",
     exitCode: 0,
     messages: [],
     stderr: "",
-    usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, cost: 0, turns: 0 },
+    usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, peakContext: 0, cost: 0, turns: 0 },
   };
-  const temp = await temporaryPrompt(agent);
+  onUpdate?.(result);
+  let temp: Awaited<ReturnType<typeof temporaryPrompt>> | undefined;
   try {
+    temp = await temporaryPrompt(agent);
     const args = ["--mode", "json", "--print", "--no-session", "--append-system-prompt", temp.file];
     if (model) args.push("--model", model);
+    if (thinkingLevel) args.push("--thinking", thinkingLevel);
     if (agent.tools?.length) args.push("--tools", agent.tools.join(","));
     args.push(`Delegated task:\n${task.task}`);
 
@@ -171,11 +192,13 @@ async function runChild(
                 result.usage.output += usage.output ?? 0;
                 result.usage.cacheRead += usage.cacheRead ?? 0;
                 result.usage.cacheWrite += usage.cacheWrite ?? 0;
+                const contextTokens = (usage.input ?? 0) + (usage.output ?? 0) + (usage.cacheRead ?? 0) + (usage.cacheWrite ?? 0);
+                result.usage.peakContext = Math.max(result.usage.peakContext, contextTokens);
                 result.usage.cost += usage.cost?.total ?? 0;
               }
               result.stopReason = event.message.stopReason;
               result.errorMessage = event.message.errorMessage;
-              if (!result.model && event.message.model) result.model = event.message.model;
+              if (!result.model && event.message.model) result.model = event.message.provider ? `${event.message.provider}/${event.message.model}` : event.message.model;
             }
             update();
           }
@@ -200,6 +223,8 @@ async function runChild(
         if (buffer.trim()) parse(buffer);
         result.exitCode = code ?? 1;
         if (aborted) result.stopReason = "aborted";
+        result.status = result.exitCode !== 0 || result.stopReason === "error" || result.stopReason === "aborted" ? "failed" : "completed";
+        update();
         resolve();
       });
       const kill = () => {
@@ -210,8 +235,13 @@ async function runChild(
       if (signal?.aborted) kill();
       else signal?.addEventListener("abort", kill, { once: true });
     });
+  } catch (error: unknown) {
+    result.status = "failed";
+    result.exitCode = 1;
+    result.stderr += error instanceof Error ? error.message : String(error);
+    onUpdate?.(result);
   } finally {
-    await fsp.rm(temp.directory, { recursive: true, force: true });
+    if (temp) await fsp.rm(temp.directory, { recursive: true, force: true });
   }
   return result;
 }
@@ -389,7 +419,7 @@ export default function (pi: ExtensionAPI) {
     async execute(_id, params, signal, onUpdate, ctx) {
       const scope = (params.agentScope ?? "bundled") as AgentScope;
       const agents = discoverAgents(ctx.cwd, scope);
-      const requested = params.agent ? [{ agent: params.agent, task: params.task ?? "", model: params.model, role: params.role, cwd: params.cwd }] : undefined;
+      const requested = params.agent ? [{ agent: params.agent, task: params.task ?? "", model: params.model, role: params.role, thinking: params.thinking, cwd: params.cwd }] : undefined;
       const modes = Number(Boolean(requested && params.task)) + Number(Boolean(params.tasks?.length)) + Number(Boolean(params.chain?.length));
       if (modes !== 1) throw new Error("Provide exactly one mode: agent + task, tasks, or chain.");
       if ((scope === "project" || scope === "both") && params.confirmProjectAgents !== false && ctx.hasUI) {
@@ -402,41 +432,60 @@ export default function (pi: ExtensionAPI) {
       }
       const config = await readConfig();
       const childModel = (task: TaskInput, index = 0) => task.model ?? modelsForRole(config, task.role)[index % Math.max(modelsForRole(config, task.role).length, 1)] ?? (ctx.model ? `${ctx.model.provider}/${ctx.model.id}` : undefined);
-      const makeUpdate = (results: ChildResult[]) => onUpdate?.({
-        content: [{ type: "text", text: results.map((result) => `${result.agent}: ${resultText(result)}`).join("\n\n") }],
-        details: { results },
+      const childThinking = (task: TaskInput) => task.thinking ?? params.thinking ?? ctx.thinkingLevel;
+      const childContextWindow = (task: TaskInput, index: number) => {
+        const selected = childModel(task, index);
+        return ctx.modelRegistry.getAll().find((model) => `${model.provider}/${model.id}` === selected)?.contextWindow;
+      };
+      const makeUpdate = (mode: "single" | "parallel" | "chain", results: ChildResult[]) => onUpdate?.({
+        content: [{ type: "text", text: formatSubagentProgress(results) }],
+        details: { mode, results },
       });
-      const start = (task: TaskInput, index = 0, update?: (result: ChildResult) => void) => runChild(ctx.cwd, task, agents, childModel(task, index), signal, update);
+      const pendingResult = (task: TaskInput, index: number): ChildResult => ({ agent: task.agent, source: "pending", task: task.task, model: childModel(task, index), thinkingLevel: childThinking(task), contextWindow: childContextWindow(task, index), status: "pending", exitCode: -1, messages: [], stderr: "", usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, peakContext: 0, cost: 0, turns: 0 } });
+      const start = (task: TaskInput, index = 0, update?: (result: ChildResult) => void) => runChild(ctx.cwd, task, agents, childModel(task, index), childThinking(task), childContextWindow(task, index), signal, update);
 
       if (params.chain?.length) {
+        const updates = params.chain.map(pendingResult);
         const results: ChildResult[] = [];
         let previous = "";
+        makeUpdate("chain", updates);
         for (const [index, task] of params.chain.entries()) {
-          const result = await start({ ...task, task: task.task.replaceAll("{previous}", previous) }, index, (current) => makeUpdate([...results, current]));
+          const result = await start({ ...task, task: task.task.replaceAll("{previous}", previous) }, index, (current) => {
+            updates[index] = current;
+            makeUpdate("chain", updates);
+          });
+          updates[index] = result;
           results.push(result);
-          if (failure(result)) throw new Error(`Chain step ${index + 1} (${result.agent}) failed: ${resultText(result)}`);
+          makeUpdate("chain", updates);
+          if (failure(result)) throw new Error(`${formatSubagentProgress(updates)}\n\nChain step ${index + 1} (${result.agent}) failed: ${resultText(result)}`);
           previous = resultText(result);
         }
-        return { content: [{ type: "text", text: resultText(results.at(-1)!) }], details: { mode: "chain", results } };
+        return { content: [{ type: "text", text: `${formatSubagentProgress(results)}\n\n${resultText(results.at(-1)!)}` }], details: { mode: "chain", results } };
       }
 
       if (params.tasks?.length) {
         if (params.tasks.length > MAX_PARALLEL_TASKS) throw new Error(`At most ${MAX_PARALLEL_TASKS} parallel tasks are allowed.`);
-        const updates: ChildResult[] = params.tasks.map((task) => ({ agent: task.agent, source: "pending", task: task.task, exitCode: -1, messages: [], stderr: "", usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, cost: 0, turns: 0 } }));
+        const updates = params.tasks.map(pendingResult);
+        makeUpdate("parallel", updates);
         const results = await runLimited(params.tasks, async (task, index) => {
-          const result = await start(task, index, (current) => { updates[index] = current; makeUpdate(updates); });
+          const result = await start(task, index, (current) => {
+            updates[index] = current;
+            makeUpdate("parallel", updates);
+          });
           updates[index] = result;
-          makeUpdate(updates);
+          makeUpdate("parallel", updates);
           return result;
         });
         const report = results.map((result) => `### ${result.agent} ${failure(result) ? "failed" : "completed"}\n\n${truncate(resultText(result))}`).join("\n\n---\n\n");
-        return { content: [{ type: "text", text: report }], details: { mode: "parallel", results } };
+        return { content: [{ type: "text", text: `${formatSubagentProgress(results)}\n\n${report}` }], details: { mode: "parallel", results } };
       }
 
       const task = requested![0];
-      const result = await start(task, 0, (current) => makeUpdate([current]));
-      if (failure(result)) throw new Error(`${result.agent} failed: ${resultText(result)}`);
-      return { content: [{ type: "text", text: resultText(result) }], details: { mode: "single", results: [result] } };
+      const pending = pendingResult(task, 0);
+      makeUpdate("single", [pending]);
+      const result = await start(task, 0, (current) => makeUpdate("single", [current]));
+      if (failure(result)) throw new Error(`${formatSubagentProgress([result])}\n\n${result.agent} failed: ${resultText(result)}`);
+      return { content: [{ type: "text", text: `${formatSubagentProgress([result])}\n\n${resultText(result)}` }], details: { mode: "single", results: [result] } };
     },
   });
 }

@@ -33,7 +33,7 @@ Bundled agents:
 - `poteto-agent` for pstack implementation and investigation delegates. It must read the full `poteto-mode` skill before working.
 - `comment-sicko` for comment-only review.
 
-The tool supports a single task, `tasks` for parallel work, and `chain` for sequential work with `{previous}` interpolation. It accepts `role` for the model configuration and `model` for a one-off `provider/model` override. It permits at most eight tasks and runs at most four concurrently.
+The tool supports a single task, `tasks` for parallel work, and `chain` for sequential work with `{previous}` interpolation. It accepts `role` for the model configuration, `model` for a one-off `provider/model` override, and `thinking` for a per-child thinking level. Children inherit the parent's thinking level when no override is set. Live progress shows each child's status, model, thinking level, peak context-window usage, and turn count. The tool permits at most eight tasks and runs at most four concurrently.
 
 It also honors Pi's subagent definition locations:
 
