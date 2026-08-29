@@ -26,14 +26,14 @@ Then restart Pi. Use `pi config` to enable or disable package resources.
 
 ## Pi subagents
 
-The extension registers a `subagent` tool using Pi's official isolated-process pattern. A child runs as a separate `pi --mode json --print --no-session` process and returns only its final result to the parent context.
+The extension registers a `pstack_subagent` tool using Pi's official isolated-process pattern. A child runs as a separate `pi --mode json --print --no-session` process and returns only its final result to the parent context.
 
 Bundled agents:
 
 - `poteto-agent` for pstack implementation and investigation delegates. It must read the full `poteto-mode` skill before working.
 - `comment-sicko` for comment-only review.
 
-The tool supports a single task, `tasks` for parallel work, and `chain` for sequential work with `{previous}` interpolation. It accepts `role` for the model configuration and `model` for a one-off `provider/model` override. It permits at most eight tasks and runs at most four concurrently.
+The tool supports a single task, `tasks` for parallel work, and `chain` for sequential work with `{previous}` interpolation. It accepts `role` for the model configuration, `model` for a one-off `provider/model` override, and `thinking` for a per-child thinking level. Children inherit the parent's thinking level when no override is set. Live progress shows each child's status, model, thinking level, peak context-window usage, and turn count. The tool permits at most eight tasks and runs at most four concurrently.
 
 It also honors Pi's subagent definition locations:
 
@@ -42,13 +42,21 @@ It also honors Pi's subagent definition locations:
 
 Bundled agents are the default. Project agents require interactive approval unless `confirmProjectAgents: false` is explicit.
 
+## Using pi-subagents alongside pstack
+
+`pi-pstack` and `pi-subagents` can be enabled together. Pstack uses the namespaced `pstack_subagent` tool, while `pi-subagents` keeps ownership of its `subagent` tool. The two extensions can therefore load in either order without a tool-name collision.
+
+The bundled `poteto-agent` and `comment-sicko` definitions are exported through both Pi's package metadata and `pi-subagents`' package metadata. When `pi-subagents` is installed, those agents are available to its workflows as well as to `pstack_subagent`.
+
+Use `pstack_subagent` when following pstack skills that depend on pstack role-to-model mappings, `tasks`, or `chain`. Use `subagent` when you need `pi-subagents` features such as background runs, worktrees, missions, resumable children, or FleetView. Pstack's model-role settings do not configure `pi-subagents` agents.
+
 ## Safety and compatibility
 
 This port deliberately removes Cursor-only setup and behavior:
 
 | Cursor pstack behavior | Pi equivalent |
 |---|---|
-| `Task` and `subagent_type` | `subagent` tool and Markdown agent definitions |
+| `Task` and `subagent_type` | `pstack_subagent` tool and Markdown agent definitions |
 | Cursor model slugs and rules | `/setup-pstack`, `pstack_config`, and Pi `provider/model` selectors |
 | sticky `mode: true` | session-persisted `/poteto-mode` extension command |
 | Cursor todo list | `pstack_todo` tool |
