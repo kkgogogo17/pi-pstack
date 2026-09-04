@@ -24,9 +24,13 @@ Then restart Pi. Use `pi config` to enable or disable package resources.
 
 `/poteto-mode` enables sticky Poteto Mode for the current Pi session and expands the bundled `poteto-mode` skill. `/poteto-mode off` disables it. Individual skills use Pi's standard form, for example `/skill:how` and `/skill:no-comments`.
 
+`/pstack on` opts the extension in permanently: every new Pi session starts with Poteto Mode enabled, and the UI status bar shows `pstack: poteto mode`. `/pstack off` reverts to the default-off state. The flag lives at `~/.pi/agent/.pstack-active`; `/pstack status` reports it. Running `/poteto-mode` while the flag is off shows a one-time hint pointing at `/pstack on`.
+
 ## Pi subagents
 
 The extension registers a `subagent` tool using Pi's official isolated-process pattern. A child runs as a separate `pi --mode json --print --no-session` process and returns only its final result to the parent context.
+
+If another extension already provides a `subagent` tool (pi-cohort, pi-subagents, `@tintinweb/pi-subagents`, ...), pstack registers the same tool as `pstack_subagent` instead, so both coexist in any load order and pstack's semantics (bundled `poteto-agent`, `role`-based model selection) keep working everywhere. Poteto Mode's system prompt names whichever delegation tool is active in the session.
 
 Bundled agents:
 

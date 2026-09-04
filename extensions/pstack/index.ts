@@ -16,6 +16,29 @@ const MAX_CONCURRENCY = 4;
 const MAX_MODEL_OUTPUT_BYTES = 50 * 1024;
 const MODE_ENTRY = "pstack-mode";
 
+// ponytail-style opt-in flag: ~/.<agent dir>/.pstack-active. Existence means
+// the extension auto-enables poteto mode on every session_start until /pstack
+// off removes the file.
+function pstackFlagPath(): string {
+  return path.join(getAgentDir(), ".pstack-active");
+}
+
+function readPstackFlag(): boolean {
+  return fs.existsSync(pstackFlagPath());
+}
+
+function writePstackFlag(): void {
+  fs.writeFileSync(pstackFlagPath(), "poteto", { encoding: "utf8", mode: 0o600 });
+}
+
+function clearPstackFlag(): void {
+  try {
+    fs.unlinkSync(pstackFlagPath());
+  } catch {
+    // ponytail: best-effort, missing file is the desired end state.
+  }
+}
+
 const Task = Type.Object({
   agent: Type.String({ description: "Agent name. Use poteto-agent for pstack implementation delegates." }),
   task: Type.String({ description: "Self-contained delegated task. Point to files instead of inlining large payloads." }),
@@ -246,6 +269,12 @@ function knownExternalWrite(command: string): string | undefined {
 export default function (pi: ExtensionAPI) {
   let potetoMode = false;
   let todos: string[] = [];
+  let potetoHintShown = false;
+  // Delegation tool name: "subagent" when that name is free; "pstack_subagent"
+  // when another extension already provides `subagent`. Set by session_start,
+  // read by the before_agent_start patch so Poteto Mode always names the
+  // tool that is actually registered in this session.
+  let delegationTool = "subagent";
 
   pi.on("session_start", (_event, ctx) => {
     potetoMode = false;
@@ -258,6 +287,10 @@ export default function (pi: ExtensionAPI) {
         if (Array.isArray(items) && items.every((item) => typeof item === "string")) todos = items;
       }
     }
+    // The flag is the persistent opt-in and wins over the branch (read after
+    // the walk so a stale MODE_ENTRY cannot clobber it): /pstack on survives
+    // restarts, /poteto-mode off stays session-only.
+    if (readPstackFlag()) potetoMode = true;
     if (ctx.mode === "tui") ctx.ui.setStatus("pstack-mode", potetoMode ? "pstack: poteto mode" : undefined);
   });
 
@@ -272,7 +305,7 @@ export default function (pi: ExtensionAPI) {
   pi.on("before_agent_start", (event) => {
     if (!potetoMode) return;
     return {
-      systemPrompt: `${event.systemPrompt}\n\nPstack Poteto Mode is enabled for this session. Follow its persisted workflow: use pstack_todo for non-trivial work, select and read the matching playbook, delegate through the subagent tool when delegation helps, verify real behavior, and name only principles that changed a decision. The full skill is at ${path.join(packageRoot(), "skills/poteto-mode/SKILL.md")}.`,
+      systemPrompt: `${event.systemPrompt}\n\nPstack Poteto Mode is enabled for this session. Follow its persisted workflow: use pstack_todo for non-trivial work, select and read the matching playbook, delegate through the ${delegationTool} tool when delegation helps${delegationTool === "pstack_subagent" ? " (the plain subagent tool belongs to another extension)" : ""}, verify real behavior, and name only principles that changed a decision. The full skill is at ${path.join(packageRoot(), "skills/poteto-mode/SKILL.md")}.`,
     };
   });
 
@@ -299,7 +332,37 @@ export default function (pi: ExtensionAPI) {
       potetoMode = true;
       pi.appendEntry(MODE_ENTRY, { enabled: true });
       ctx.ui.setStatus("pstack-mode", "pstack: poteto mode");
+      // One hint per session: if the persistent flag is not set, tell the user
+      // how to opt in so they stop toggling /poteto-mode each new session.
+      if (!readPstackFlag() && !potetoHintShown) {
+        potetoHintShown = true;
+        ctx.ui.notify("Tip: /pstack on makes this stick across Pi sessions.", "info");
+      }
       await ctx.sendUserMessage(`/skill:poteto-mode${args.trim() ? ` ${args.trim()}` : ""}`);
+    },
+  });
+
+  pi.registerCommand("pstack", {
+    description: "Toggle persistent pstack mode (opt-in). Default off. Usage: /pstack on|off|status",
+    handler: async (args, ctx) => {
+      const arg = args.trim().toLowerCase();
+      if (/^(on|enable)$/.test(arg)) {
+        writePstackFlag();
+        potetoMode = true;
+        pi.appendEntry(MODE_ENTRY, { enabled: true });
+        ctx.ui.setStatus("pstack-mode", "pstack: poteto mode");
+        ctx.ui.notify("pstack mode enabled.", "info");
+        return;
+      }
+      if (/^(off|disable)$/.test(arg)) {
+        clearPstackFlag();
+        potetoMode = false;
+        pi.appendEntry(MODE_ENTRY, { enabled: false });
+        ctx.ui.setStatus("pstack-mode", undefined);
+        ctx.ui.notify("pstack mode disabled.", "info");
+        return;
+      }
+      ctx.ui.notify(`pstack: flag=${readPstackFlag() ? "on" : "off"} session=${potetoMode ? "on" : "off"}`, "info");
     },
   });
 
@@ -381,10 +444,18 @@ export default function (pi: ExtensionAPI) {
     },
   });
 
-  pi.registerTool({
-    name: "subagent",
+  // Registered lazily in session_start, not at load: pi flags tools with the
+  // same name across extensions as a fatal load error, and the user may
+  // already run pi-cohort, pi-subagents, @tintinweb/pi-subagents, etc. When
+  // the `subagent` name is taken we register ours as `pstack_subagent` so
+  // pstack keeps its full semantics (bundled poteto-agent, role→model
+  // routing, chain templating) everywhere; registration happens after pi's
+  // conflict scan, so the two tools coexist in any load order.
+  const registerSubagentTool = (name: string) => pi.registerTool({
+    name,
     label: "Subagent",
     description: `Delegate isolated work to Pi subagents. Supports exactly one of single agent/task, parallel tasks (maximum ${MAX_PARALLEL_TASKS}), or sequential chain. Bundled pstack agents live in ${bundledAgentsDirectory()}.`,
+    promptGuidelines: [`Use ${name} for pstack Poteto Mode playbook delegation (bundled poteto-agent, role-based model selection).`],
     parameters: SubagentParams,
     async execute(_id, params, signal, onUpdate, ctx) {
       const scope = (params.agentScope ?? "bundled") as AgentScope;
@@ -438,5 +509,16 @@ export default function (pi: ExtensionAPI) {
       if (failure(result)) throw new Error(`${result.agent} failed: ${resultText(result)}`);
       return { content: [{ type: "text", text: resultText(result) }], details: { mode: "single", results: [result] } };
     },
+  });
+
+  pi.on("session_start", (_event, ctx) => {
+    if (pi.getAllTools().some((tool) => tool.name === "subagent")) {
+      delegationTool = "pstack_subagent";
+      registerSubagentTool(delegationTool);
+      if (ctx.mode === "tui") ctx.ui.notify("pstack: another extension provides the subagent tool; pstack delegation registered as pstack_subagent.", "info");
+      return;
+    }
+    delegationTool = "subagent";
+    registerSubagentTool(delegationTool);
   });
 }
