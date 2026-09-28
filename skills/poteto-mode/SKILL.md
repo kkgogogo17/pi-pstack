@@ -81,11 +81,15 @@ Read the leaf skill in full for any principle you apply. Each entry names when i
 
 ## Subagents
 
-**Use Pi's `subagent` tool with `agent: "poteto-agent"` for implementation delegates and ad-hoc helpers.** The bundled agent reads this skill in full before it works. Routed workflow skills (`how`, `why`, `interrogate`, `reflect`, `swarm`) may use other agents to preserve independent review.
+**Use native pi-subagents for authorized delegation.** Call `subagents_enable({})` to expose its `subagent` tool. For a child, first call `pstack_config({action: "resolve", role, slot})`, then launch `subagent` directly with `agent: "pi-pstack.poteto-agent"`, a self-contained `task`, the returned `model`, and `async: true`. Slot numbers start at zero. Resolve a separate slot for each role-pool entry.
 
-**Defaults for each `subagent` call.** Keep the task self-contained, point at files instead of inlining large payloads, and use `role` for model selection. Configure roles through `/setup-pstack` or `pstack_config`. Unconfigured roles inherit the parent Pi model. The tool supports single, `tasks` parallel, and `chain` sequential modes. It limits parallel work to eight tasks and four running child processes. Pi child processes run locally in isolated contexts; do not assume cloud execution, background resume, or a read-only sandbox.
+Use `workflowScript` with `runs.all` for parallel work and `runs.run` for sequential steps. pi-subagents owns execution, lifecycle, and receipts. Use its `status` and `resume` actions to inspect or continue eligible runs. Native action limits and resume eligibility come from pi-subagents. Do not promise sandboxing or isolation. Keep task scopes explicit and review delegated changes yourself.
 
-You own every subagent's work. Review the diff and write your own summary, don't pass through what it said. Interrupt-chained resumes silently drop directives, so fire a fresh subagent with consolidated scope rather than trusting a "done" summary. A second opinion is the same prompt against a different model. Agreement is high-signal.
+Concurrent native writers must use `isolation: "worktree"`. Native worktree allocation fails when the source checkout is dirty. When it is dirty, select an explicitly precreated separate worktree for a writer or stop for cleanup. Never send a writer to the shared checkout by default. Read-only children, native `status`, and eligible `resume` calls do not need worktree isolation.
+
+Delegation requires authorization from the current request or applicable instructions. Complexity alone does not authorize it. External or irreversible actions still require explicit user confirmation. A child must not perform those actions without that confirmation.
+
+You own every subagent's work. Review the diff and write your own summary, don't pass through what it said. When continuing interrupted work, use a fresh launch with consolidated instructions unless native `resume` is appropriate and eligible. A second opinion is the same prompt against a different model. Agreement is high-signal.
 
 ## Writing the reply
 

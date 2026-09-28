@@ -26,19 +26,19 @@ The active transcript is `$PI_SESSION_FILE`. Use it directly when present. To ch
 
 ### 2. Spawn three reviewers in parallel
 
-One parallel `subagent` call with three tasks, each using `agent: "poteto-agent"`, `role: "reflect judgment, divergent, synthesizer"`, and a prompt that forbids file writes. Reviewers may use MCPs available to their Pi child process for cited context lookups. The parent applies edits.
+Resolve slot 0 for `reflect judgment, divergent, synthesizer`, slot 0 for `reflect tooling`, and slot 1 for `reflect judgment, divergent, synthesizer` with `pstack_config({action: "resolve", role, slot})`. After calling `subagents_enable({})`, launch three native `subagent` calls with `agent: "pi-pstack.poteto-agent"`, each resolved `model`, and a prompt that forbids file writes. Use `workflowScript` with `runs.all` to collect them. Reviewers may use MCPs available to their native subagent sessions for cited context lookups. The parent applies edits.
 
 | Lens | `model` | Prompt template |
 |---|---|---|
-| Judgment | your configured reflect-judgment model (default `inherit-parent`) | `references/judgment-reviewer.md` |
-| Tooling | your configured reflect-tooling model (default `inherit-parent`) | `references/tooling-reviewer.md` |
-| Divergent | your configured reflect-judgment model (default `inherit-parent`) | `references/divergent-reviewer.md` |
+| Judgment | `reflect judgment, divergent, synthesizer`, slot 0 | `references/judgment-reviewer.md` |
+| Tooling | `reflect tooling`, slot 0 | `references/tooling-reviewer.md` |
+| Divergent | `reflect judgment, divergent, synthesizer`, slot 1 | `references/divergent-reviewer.md` |
 
 Pass each template verbatim, substituting the transcript path or digest where marked. Reviewers return findings in the `subagent` result.
 
 ### 3. Synthesize
 
-One `subagent` call using `agent: "poteto-agent"` and `role: "reflect judgment, divergent, synthesizer"`. The synthesizer may use MCPs available to its Pi child process to spot-check citations. Use `references/synthesizer.md` verbatim, with each reviewer's full output inlined where marked. The synthesizer returns a structured Accepted / Rejected / Backlog list.
+Resolve slot 0 for `reflect judgment, divergent, synthesizer` with `pstack_config({action: "resolve", role, slot})`, then launch a native `subagent` with `agent: "pi-pstack.poteto-agent"` and the resolved `model`. The synthesizer may use MCPs available to its native subagent session to spot-check citations. Use `references/synthesizer.md` verbatim, with each reviewer's full output inlined where marked. The synthesizer returns a structured Accepted / Rejected / Backlog list.
 
 ### 4. Structural enforcement check
 

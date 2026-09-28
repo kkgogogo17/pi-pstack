@@ -1,5 +1,6 @@
 ---
 name: comment-sicko
+package: pi-pstack
 description: Read-only pstack comment reviewer. Finds comments and suppression directives that should be deleted or replaced by clearer code.
 tools: read, grep, find, ls, bash
 ---

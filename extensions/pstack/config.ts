@@ -24,7 +24,13 @@ export const ROLE_NAMES = [
 ] as const;
 
 export type RoleName = (typeof ROLE_NAMES)[number];
-export type RoleValue = string | string[];
+export type ProviderModelId = string;
+export type RoleValue = ProviderModelId | ProviderModelId[];
+export type RoleSelection = Readonly<{
+  role: RoleName;
+  slot: number;
+  model: ProviderModelId;
+}>;
 
 export interface PstackConfig {
   version: 1;
@@ -64,13 +70,28 @@ export async function writeConfig(config: PstackConfig): Promise<void> {
   await fs.writeFile(target, `${JSON.stringify(config, null, 2)}\n`, { mode: 0o600 });
 }
 
-export function modelsForRole(config: PstackConfig, role: string | undefined): string[] {
-  if (!role) return [];
-  const value = config.roles[role];
-  const values = typeof value === "string" ? [value] : Array.isArray(value) ? value : [];
-  return values.filter((model) => model !== "inherit-parent" && model !== "auto");
+export function isRoleName(role: string): role is RoleName {
+  return ROLE_NAMES.some((name) => name === role);
 }
 
-export function modelForRole(config: PstackConfig, role: string | undefined): string | undefined {
-  return modelsForRole(config, role)[0];
+export function resolveRoleSelection(
+  config: PstackConfig,
+  role: RoleName,
+  slot: number,
+  parentModel: ProviderModelId | undefined,
+  availableModels: readonly ProviderModelId[],
+): RoleSelection {
+  if (!Number.isInteger(slot) || slot < 0) throw new Error("pstack_config resolve requires a nonnegative integer slot.");
+  const value = config.roles[role];
+  const pool = typeof value === "string" ? [value] : Array.isArray(value) ? value : [];
+  const configuredModel = pool.length ? pool[slot % pool.length] : undefined;
+  if (!configuredModel) throw new Error(`No model is configured for pstack role ${JSON.stringify(role)}.`);
+  if (configuredModel === "inherit-parent") {
+    if (!parentModel) throw new Error("Cannot resolve inherit-parent because the parent session has no selected model.");
+    return { role, slot, model: parentModel };
+  }
+  const matches = availableModels.filter((model) => model === configuredModel);
+  if (matches.length === 0) throw new Error(`Configured model ${JSON.stringify(configuredModel)} is unavailable. Use pstack_config list-models to choose an available model.`);
+  if (matches.length > 1) throw new Error(`Configured model ${JSON.stringify(configuredModel)} is ambiguous in the current Pi model registry.`);
+  return { role, slot, model: configuredModel };
 }

@@ -24,8 +24,8 @@ Resolve what is in scope vs explicitly out, technical or platform constraints, p
 
 Delegate codebase exploration (the **guard-the-context-window** principle skill).
 
-- Prefer `agent: "poteto-agent"`. Use a named bundled or user Pi agent when a specialized prompt is needed. There is no built-in Pi plan subagent type.
-- Pass `model:` explicitly per the configured roles (defaults `inherit-parent` for code, `inherit-parent` for judgment).
+- Prefer `agent: "pi-pstack.poteto-agent"`. Use a named bundled or user Pi agent when a specialized prompt is needed. There is no built-in Pi plan subagent type.
+- Resolve a model for each launch with `pstack_config({action: "resolve", role, slot})`, then pass the returned `model` to native `subagent`. Use zero-based slots for configured model pools.
 
 Each explorer returns file pointers, conventions, dependencies, test infrastructure, and entry points. No inlined dumps.
 

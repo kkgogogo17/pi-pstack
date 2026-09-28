@@ -116,9 +116,8 @@ Aim for a complete **coverage map**, not a minimal one. A null result from an is
 Launch all matching investigators in a single message so they run concurrently. One investigator per category lets each specialize in one tool's query vocabulary and result shape. Don't ask one agent to cover multiple MCPs.
 
 Subagent config (each):
-- `agent`: `poteto-agent`
-- `model`: your configured why-investigators model (default `inherit-parent`)
-- use a normal Pi child process. **Do not use restricted-tool mode.** It strips MCP access, which disables MCP-backed investigators entirely. The source control investigator would be safe in readonly, but keep modes uniform. Investigators still shouldn't write anything. That's a posture, not a sandbox.
+- `agent`: `pi-pstack.poteto-agent`
+Resolve each investigator slot for `why investigators` with `pstack_config({action: "resolve", role, slot})`. Call `subagents_enable({})` when needed, then launch native `subagent` calls with the returned `model`. Use `workflowScript` and `runs.all` for parallel investigators. Preserve MCP access when investigators need it. Investigators should not write files, but that instruction is not a sandbox.
 
 Each investigator gets:
 1. The base prompt from `references/investigator-prompt.md`
@@ -162,9 +161,8 @@ If your scope assessment suggests a single-commit trivial target where the PR de
 
 Spawn one synthesizer subagent:
 
-- `agent`: `poteto-agent`
-- `model`: your configured why-synthesizer model (default `inherit-parent`)
-- use a normal Pi child process. The synthesizer's quality check spot-verifies citations, which can require MCP access. Tool availability varies by Pi configuration and defeats that.
+- `agent`: `pi-pstack.poteto-agent`
+Resolve slot 0 for `why synthesizer` with `pstack_config({action: "resolve", role, slot: 0})`, then launch a native `subagent` with the returned `model`. Preserve MCP access because the synthesizer may need it to spot-check citations.
 
 The synthesizer gets:
 1. The investigator findings, including any null results and any categories skipped with justification

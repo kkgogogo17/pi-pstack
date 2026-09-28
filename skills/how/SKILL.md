@@ -42,11 +42,7 @@ Decompose the question into 2-4 parallel exploration angles, each a distinct sli
 
 The right decomposition depends on the question. Use your judgment. Narrow questions: 2 explorers is fine. Broad subsystems: up to 4.
 
-Spawn all explorers in a single message:
-
-- `agent`: `poteto-agent`
-- `model`: your configured how-explorer model (default `inherit-parent`)
-- do not grant write/edit tools
+Call `subagents_enable({})` when needed, then launch native `subagent` calls with `agent: "pi-pstack.poteto-agent"` and no write/edit tools. Resolve each model with `pstack_config({action: "resolve", role: "how explorer", slot})`. Use `workflowScript` and `runs.all` to collect parallel explorers.
 
 Each explorer gets the same base prompt from `references/explorer-prompt.md` plus a specific exploration angle naming its slice. Each explorer should:
 - Start broad: Glob for relevant directories, Grep for key types/interfaces/class names
@@ -61,11 +57,7 @@ Then proceed to Step 3.
 
 ### Step 2b. Direct Explain (simple questions)
 
-Spawn a single subagent that explores and explains in one pass:
-
-- `agent`: `poteto-agent`
-- `model`: your configured how-explainer model (default `inherit-parent`)
-- do not grant write/edit tools
+Resolve slot 0 for `how explainer` with `pstack_config({action: "resolve", role: "how explainer", slot: 0})`. Call `subagents_enable({})` when needed, then launch a native `subagent` with `agent: "pi-pstack.poteto-agent"`, the resolved `model`, and no write/edit tools.
 
 The agent does its own exploration (Glob, Grep, Read) and writes the explanation directly. Read `references/explainer-prompt.md` for the communication style and output format. Same structure, just no explorer findings as input.
 
@@ -73,11 +65,7 @@ Proceed to Step 4.
 
 ### Step 3. Synthesize (complex questions only)
 
-Once all explorers return, spawn a single subagent to synthesize their findings into one coherent explanation:
-
-- `agent`: `poteto-agent`
-- `model`: your configured how-explainer model (default `inherit-parent`)
-- do not grant write/edit tools
+Once all explorers return, resolve slot 0 for `how explainer` and launch a native `subagent` with `agent: "pi-pstack.poteto-agent"`, the resolved `model`, and no write/edit tools.
 
 The explainer gets all explorers' findings and writes the human-facing explanation (output format below). Read `references/explainer-prompt.md` for the full prompt template. The explainer reconciles overlapping findings, resolves contradictions, and weaves the slices into a unified picture.
 
@@ -109,11 +97,11 @@ Run the full explain flow above (Steps 1-4). You must understand the architectur
 
 ### Step 2. Spawn Critics
 
-After the explanation is complete, spawn one architectural critic per model in your configured how-critics list (defaults `inherit-parent`, `inherit-parent`, `inherit-parent`, `inherit-parent`), all in a single message.
+After the explanation is complete, resolve one `how critics` slot per configured critic. Call `subagents_enable({})` when needed, then use native `subagent` launches and `workflowScript` with `runs.all` to collect their reviews.
 
 For each critic:
-- `agent`: `poteto-agent`
-- `model`: one model from the configured how-critics list. These are minimum reasoning levels. The lead should escalate any model when the architecture warrants deeper analysis.
+- `agent`: `pi-pstack.poteto-agent`
+- `model`: the exact selector returned by `pstack_config` for that critic's slot. Resolve a different slot for each critic.
 - do not grant write/edit tools
 
 Read `references/critic-prompt.md` for the prompt template. Each critic gets:
