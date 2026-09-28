@@ -1,0 +1,16 @@
+name: CI
+
+on: pull_request
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: skills/poteto-mode/scripts
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+      - run: bun test orch watch-pr
+      - run: bun run typecheck
