@@ -25,6 +25,7 @@ test("subagent policy blocks raw host calls and gates unsafe native commands", (
   });
   assert.equal(subagentExternalActionPolicy({ gate: "npm test" }).kind, "allow");
   assert.equal(subagentExternalActionPolicy({ acceptance: { verify: [{ command: "gh pr merge 42" }] } }).kind, "confirm");
+  assert.equal(subagentExternalActionPolicy({ acceptance: { verify: [{ command: "gh pr merge 42" }, { command: "git push" }] } }).kind, "block");
   assert.equal(subagentExternalActionPolicy({ workflow: "run-ci", args: { command: "rm -rf generated" } }).kind, "confirm");
   assert.equal(subagentExternalActionPolicy({ action: "status" }).kind, "allow");
   assert.equal(subagentExternalActionPolicy({ workflowScript: "return runs.all([{ key: 'review', agent: 'reviewer', task: 'Review' }])" }).kind, "allow");

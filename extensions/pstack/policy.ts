@@ -28,12 +28,14 @@ function commandPolicy(command: unknown): ExternalActionPolicy {
 
 function verifyPolicy(verify: unknown): ExternalActionPolicy {
   if (!Array.isArray(verify)) return { kind: "block", reason: "Native acceptance verification must be an array of command objects." };
-  for (const entry of verify) {
-    if (!isRecord(entry)) return { kind: "block", reason: "Native acceptance verification has an invalid command entry." };
-    const policy = commandPolicy(entry.command);
-    if (policy.kind !== "allow") return policy;
+  const policies: ExternalActionPolicy[] = verify.map((entry) =>
+    isRecord(entry) ? commandPolicy(entry.command) : { kind: "block", reason: "Native acceptance verification has an invalid command entry." },
+  );
+  const restricted = policies.filter((policy) => policy.kind !== "allow");
+  if (restricted.length && verify.length > 1) {
+    return { kind: "block", reason: "Review native verification commands individually before launching a multi-command gate." };
   }
-  return { kind: "allow" };
+  return restricted[0] ?? { kind: "allow" };
 }
 
 export function subagentExternalActionPolicy(input: Record<string, unknown>): ExternalActionPolicy {
