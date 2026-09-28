@@ -85,7 +85,9 @@ Read the leaf skill in full for any principle you apply. Each entry names when i
 
 Use `workflowScript` with `runs.all` for parallel work and `runs.run` for sequential steps. pi-subagents owns execution, lifecycle, and receipts. Use its `status` and `resume` actions to inspect or continue eligible runs. Native action limits and resume eligibility come from pi-subagents. Do not promise sandboxing or isolation. Keep task scopes explicit and review delegated changes yourself.
 
-Concurrent native writers must use `isolation: "worktree"`. Native worktree allocation fails when the source checkout is dirty. When it is dirty, select an explicitly precreated separate worktree for a writer or stop for cleanup. Never send a writer to the shared checkout by default. Read-only children, native `status`, and eligible `resume` calls do not need worktree isolation.
+Concurrent writers must use `isolation: "worktree"`. Managed worktree allocation requires a clean source checkout. If the source is dirty, create a separate clean worktree and launch the writer from there. Leave existing changes alone. Never send a writer to the shared checkout by default.
+
+An isolated writer's edits do not land in the parent checkout automatically. Inspect native `status`, the run's handoff, and its durable patch. Verify the patch, then explicitly apply or merge it before declaring the task done. Read-only children do not need worktree isolation.
 
 Delegation requires authorization from the current request or applicable instructions. Complexity alone does not authorize it. External or irreversible actions still require explicit user confirmation. A child must not perform those actions without that confirmation.
 

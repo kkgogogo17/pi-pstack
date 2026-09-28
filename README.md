@@ -40,7 +40,11 @@ await subagent({ agent: "pi-pstack.poteto-agent", task: "Implement the change an
 
 `slot` is a zero-based position in the configured role pool. A single configured model works for every slot. A model pool cycles by slot. `inherit-parent` resolves to the current Pi model. `pstack_config` rejects unknown roles, invalid slots, missing parent models, and configured models that are unavailable or ambiguous.
 
-Launch direct async work with `subagent({agent, task, model, async: true})`. Concurrent native writers must set `isolation: "worktree"`. Native worktree allocation fails when the source checkout is dirty. In that case, choose an explicitly precreated separate worktree for the writer or clean the source checkout first. Do not silently write from multiple children into the shared checkout. Read-only children, native `status`, and eligible `resume` calls do not need worktree isolation. Use a native `workflowScript` with `runs.all` for fanout and `runs.run` for sequential work. Native `status` reports lifecycle state. Native `resume` continues only eligible retained runs. pi-subagents owns execution, lifecycle, limits, and receipts. Consult its installed guide for action and workflow limits. pi-pstack adds no parallelism or lifecycle limits.
+Launch direct async work with `subagent({agent, task, model, async: true})`. Concurrent writers must use `isolation: "worktree"`. Managed worktree allocation requires a clean source checkout. If the source is dirty, create a separate clean worktree and launch the writer from there. Leave existing changes alone.
+
+An isolated writer's edits do not land in the parent checkout automatically. Inspect native `status`, the run's handoff, and its durable patch. Verify the patch, then explicitly apply or merge it before declaring the task done.
+
+Read-only children do not need worktree isolation. Use `workflowScript` with `runs.all` for fanout and `runs.run` for sequential work. Native `status` reports lifecycle state, and `resume` continues only eligible retained runs. pi-subagents owns execution, limits, and receipts. Consult its installed guide for action and workflow limits. pi-pstack adds no parallelism or lifecycle limits.
 
 The package manifest exposes `./agents` through `pi.subagents.agents`. The bundled `poteto-agent` must read the full `poteto-mode` skill before working. `comment-sicko` reviews comments only.
 
