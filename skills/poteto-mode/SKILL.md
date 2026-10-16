@@ -31,7 +31,7 @@ Remaining triggers:
 
 ## Principles
 
-Read the leaf skill in full for any principle you apply. Each entry names when it applies.
+Read the leaf skill in full for any principle you apply. The leaf skills live at `../principle-*/SKILL.md` relative to this file. For each principle you apply, resolve its listed `principle-<slug>` name with `node ../../scripts/resolve-principle.mjs principle-<slug>`. Resolve the script path relative to this `SKILL.md`, not your working directory. Read only the absolute `SKILL.md` path the command prints; stop if it fails. Each entry names when it applies.
 
 **Core**
 

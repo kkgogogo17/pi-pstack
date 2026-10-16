@@ -4,7 +4,7 @@
   "description": "Pi-native port of Cursor pstack skills, sticky Poteto Mode, and isolated subagents.",
   "license": "MIT",
   "keywords": ["pi-package", "pi", "skills", "subagent", "pstack"],
-  "files": ["extensions", "skills", "agents", "README.md", "LICENSE"],
+  "files": ["extensions", "skills", "agents", "scripts", "README.md", "LICENSE"],
   "pi": {
     "extensions": ["./extensions/pstack/index.ts"],
     "skills": ["./skills"]
