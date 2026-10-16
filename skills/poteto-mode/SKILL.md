@@ -8,6 +8,8 @@ disable-model-invocation: true
 
 ## Non-negotiables
 
+Read the exact absolute `SKILL.md` path supplied in your agent prompt. For another installed skill without a supplied path, use `find` on the installed package. `rg --files` skips installed packages under ignored `node_modules`.
+
 **Start every multi-step task with `pstack_todo`; its first item is to read the Principles section below in full.** The principles ground every trigger here. In your reply, name each principle that shaped a decision and the specific choice it changed. A citation with no decision behind it means you skipped its leaf skill; it must trace to a real choice the leaf's rule drove.
 
 Remaining triggers:
