@@ -1,6 +1,8 @@
 {
   "name": "pi-pstack",
   "version": "0.1.0",
+  "type": "module",
+  "scripts": { "test": "node --experimental-strip-types --test extensions/pstack/*.test.mjs" },
   "description": "Pi-native port of Cursor pstack skills, sticky Poteto Mode, and isolated subagents.",
   "license": "MIT",
   "keywords": ["pi-package", "pi", "skills", "subagent", "pstack"],
@@ -13,5 +15,10 @@
     "@earendil-works/pi-ai": "*",
     "@earendil-works/pi-coding-agent": "*",
     "typebox": "*"
+  },
+  "devDependencies": {
+    "@earendil-works/pi-ai": "1.3.0",
+    "@earendil-works/pi-coding-agent": "1.3.0",
+    "typebox": "1.3.27"
   }
 }
